@@ -1,0 +1,24 @@
+# Local Python environment -- never commit; requirements.txt is what
+# reproduces it, not the venv folder itself.
+venv/
+__pycache__/
+*.pyc
+
+# Runtime data from local testing -- recreated empty by main.py's own
+# UPLOAD_DIR.mkdir()/OUTPUT_DIR.mkdir() calls.
+uploads/
+outputs/
+
+# Downloaded model artifact, not source code -- the Dockerfile re-fetches
+# and bakes this in fresh at build time regardless (ensure_model()), so
+# committing it would just bloat the repo with a ~5-6MB binary that adds
+# nothing git-history-wise.
+pose_landmarker_heavy.task
+
+# Editor/IDE config -- personal, not project config.
+.vscode/
+.idea/
+
+# Env var overrides (FFMPEG_BIN etc.) if you ever put them in a file
+# instead of setting them per-session -- never commit local machine paths.
+.env

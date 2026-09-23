@@ -1,0 +1,17 @@
+# Local dev environment -- never belongs in the image; the Dockerfile
+# installs dependencies fresh from requirements.txt instead.
+venv/
+__pycache__/
+*.pyc
+
+# Runtime data from local testing -- these directories are recreated
+# empty by main.py's own UPLOAD_DIR.mkdir()/OUTPUT_DIR.mkdir() calls, no
+# need to (and don't want to) ship local test uploads/outputs in the image.
+uploads/
+outputs/
+
+# Git internals and editor config -- irrelevant to what actually runs.
+.git/
+.gitignore
+.vscode/
+.idea/

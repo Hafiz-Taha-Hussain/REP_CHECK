@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RepCheck — Squat Form Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #171613;
+    --surface: #201f1c;
+    --surface-raised: #2a2925;
+    --border: #3a3831;
+    --chalk: #f1ede4;
+    --ink-muted: #a39e93;
+    --pass: #4fbf75;
+    --fail: #e5544b;
+    --neutral: #8b877c;
+    --accent: #f5b700;
+    --accent-ink: #171613;
+    --radius: 6px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--chalk);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  main {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 48px clamp(20px, 4vw, 48px) 96px;
+  }
+
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(48px, 10vw, 72px);
+    letter-spacing: 0.01em;
+    line-height: 0.95;
+    margin: 0 0 8px;
+  }
+
+  .subtitle {
+    color: var(--ink-muted);
+    max-width: 42ch;
+    margin: 0 0 40px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+  }
+
+  .panel + .panel { margin-top: 20px; }
+
+  label {
+    display: block;
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Drop zone -- */
+  .dropzone {
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .dropzone:hover,
+  .dropzone.drag-over {
+    border-color: var(--accent);
+    background: rgba(245, 183, 0, 0.07);
+  }
+  .dropzone input { display: none; }
+  .dropzone .hint {
+    color: var(--ink-muted);
+    font-size: 14px;
+    margin-top: 6px;
+  }
+  .filename {
+    color: var(--accent);
+    font-weight: 600;
+    word-break: break-all;
+  }
+
+  /* -- View toggle -- */
+  .view-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-top: 24px;
+  }
+  .view-toggle button {
+    appearance: none;
+    background: transparent;
+    color: var(--ink-muted);
+    border: none;
+    padding: 10px 22px;
+    font-family: inherit;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .view-toggle button + button { border-left: 1px solid var(--border); }
+  .view-toggle button.active {
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+
+  /* -- Buttons -- */
+  .btn-primary {
+    display: inline-block;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: none;
+    border-radius: var(--radius);
+    padding: 13px 28px;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 24px;
+    transition: filter 0.15s ease;
+  }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-primary:disabled {
+    background: var(--surface-raised);
+    color: var(--ink-muted);
+    cursor: not-allowed;
+  }
+  .btn-primary:focus-visible,
+  .view-toggle button:focus-visible,
+  .dropzone:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .btn-secondary {
+    display: inline-block;
+    background: transparent;
+    color: var(--ink-muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 20px;
+    font-family: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  .btn-secondary:hover { color: var(--chalk); border-color: var(--chalk); }
+
+  /* -- Error / status text -- */
+  .error-text {
+    color: var(--fail);
+    font-size: 14px;
+    margin-top: 14px;
+  }
+
+  /* -- Processing state -- */
+  .status-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 600;
+  }
+  .status-label { color: var(--ink-muted); font-weight: 400; }
+  .progress-track {
+    margin-top: 18px;
+    height: 4px;
+    background: var(--surface-raised);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    width: 40%;
+    height: 100%;
+    background: var(--accent);
+    animation: sweep 1.4s ease-in-out infinite;
+  }
+  @keyframes sweep {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+  }
+
+  /* -- Results -- */
+  .results { animation: rise 0.4s ease; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .rep-summary {
+    display: flex;
+    align-items: baseline;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .rep-count {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 64px;
+    line-height: 1;
+  }
+  .rep-count-label {
+    color: var(--ink-muted);
+    font-size: 14px;
+  }
+  .verdict-tally { display: flex; gap: 16px; font-size: 14px; }
+  .verdict-tally span.pass { color: var(--pass); }
+  .verdict-tally span.fail { color: var(--fail); }
+  .verdict-tally span.inconclusive { color: var(--neutral); }
+
+  video {
+    display: block;
+    max-width: 100%;
+    max-height: 65vh;
+    margin: 24px auto 0;
+    border-radius: var(--radius);
+    background: #000;
+  }
+
+  .rep-list {
+    margin-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .pill {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .pill.pass { background: rgba(79, 191, 117, 0.15); color: var(--pass); }
+  .pill.fail { background: rgba(229, 84, 75, 0.15); color: var(--fail); }
+  .pill.inconclusive,
+  .pill.insufficient_data { background: rgba(139, 135, 124, 0.15); color: var(--neutral); }
+
+  .view-note {
+    color: var(--ink-muted);
+    font-size: 13px;
+    margin: 10px 0 0;
+  }
+
+  .check-summary {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+  }
+  .check-summary-item .check-name {
+    font-size: 13px;
+    color: var(--ink-muted);
+    text-transform: capitalize;
+    margin-bottom: 4px;
+  }
+  .check-summary-item .check-counts {
+    font-size: 14px;
+    display: flex;
+    gap: 10px;
+  }
+  .check-counts .pass { color: var(--pass); }
+  .check-counts .fail { color: var(--fail); }
+  .check-counts .neutral { color: var(--neutral); }
+
+  .rep-row {
+    display: block;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .rep-row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .rep-row .rep-when {
+    color: var(--ink-muted);
+    font-size: 13px;
+  }
+  .rep-checks {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .rep-check-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .rep-check-line .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .rep-check-line .dot.pass { background: var(--pass); }
+  .rep-check-line .dot.fail { background: var(--fail); }
+  .rep-check-line .dot.insufficient_data { background: var(--neutral); }
+  .rep-check-line .text { color: var(--ink-muted); }
+  .rep-check-line .text strong { color: var(--chalk); font-weight: 500; }
+
+  .empty-reps {
+    margin-top: 24px;
+    padding: 24px;
+    text-align: center;
+    color: var(--ink-muted);
+    font-size: 14px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+  }
+
+  .downloads {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+  .download-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--chalk);
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 9px 16px;
+    text-decoration: none;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+  .download-link:hover { border-color: var(--accent); color: var(--accent); }
+  .download-link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .raw-data-link {
+    display: block;
+    margin-top: 16px;
+    color: var(--ink-muted);
+    font-size: 12px;
+    text-decoration: underline;
+    text-decoration-color: var(--border);
+  }
+  .raw-data-link:hover { color: var(--chalk); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .progress-fill { animation: none; }
+    .results { animation: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>RepCheck</h1>
+  <p class="subtitle">Upload a squat clip and pick your camera angle. You'll get a rep count, a pass/fail call on each rep with the actual numbers behind it, and the clip back with a skeleton overlay so you can see exactly what was measured.</p>
+
+  <!-- Upload panel -->
+  <section class="panel" id="upload-panel">
+    <label for="file-input">Video</label>
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a video file">
+      <div id="dropzone-text">Drop your clip here or choose a file</div>
+      <div class="hint" id="dropzone-hint">MP4 only, up to 10MB</div>
+      <input type="file" id="file-input" accept="video/mp4,.mp4">
+    </div>
+
+    <label style="margin-top: 24px;">Camera angle</label>
+    <div class="view-toggle" role="group" aria-label="Camera angle">
+      <button type="button" class="active" data-view="front">Front</button>
+      <button type="button" data-view="side">Side</button>
+    </div>
+
+    <div id="upload-error" class="error-text" hidden></div>
+
+    <button class="btn-primary" id="submit-btn" disabled>Check form</button>
+  </section>
+
+  <!-- Processing panel -->
+  <section class="panel" id="processing-panel" hidden>
+    <div class="status-line">
+      <span id="status-text">Queued</span>
+      <span class="status-label" id="status-detail">waiting for a worker to pick this up…</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill"></div></div>
+  </section>
+
+  <!-- Error panel -->
+  <section class="panel" id="error-panel" hidden>
+    <div class="status-line" style="color: var(--fail);">Something went wrong</div>
+    <p id="error-detail" class="error-text" style="margin-top: 10px;"></p>
+    <button class="btn-secondary" id="retry-btn">Try another clip</button>
+  </section>
+
+  <!-- Results panel -->
+  <section class="panel results" id="results-panel" hidden>
+    <div class="rep-summary">
+      <div>
+        <div class="rep-count" id="rep-count">0</div>
+        <div class="rep-count-label">reps detected</div>
+      </div>
+      <div class="verdict-tally">
+        <span class="pass" id="tally-pass">0 pass</span>
+        <span class="fail" id="tally-fail">0 fail</span>
+        <span class="inconclusive" id="tally-inconclusive">0 inconclusive</span>
+      </div>
+    </div>
+
+    <video id="result-video" controls playsinline></video>
+    <div class="downloads">
+      <a class="download-link" id="video-link" href="#" download="repcheck-annotated.mp4">Download video</a>
+    </div>
+
+    <p class="view-note" id="view-note"></p>
+    <div class="check-summary" id="check-summary"></div>
+
+    <div class="empty-reps" id="empty-reps" hidden>
+      No reps were detected in this clip. Make sure your whole body stays in frame for the full squat and try again.
+    </div>
+    <div class="rep-list" id="rep-list"></div>
+
+    <button class="btn-secondary" id="reset-btn">Check another clip</button>
+    <a class="raw-data-link" id="report-link" href="#" download="repcheck-report.json">View raw data (JSON)</a>
+  </section>
+</main>
+
+<script>
+(() => {
+  const MAX_VIDEO_SIZE_MB = 10; // mirrors the server-side cap — keep the two in sync if it changes
+
+  const dropzone = document.getElementById('dropzone');
+  const dropzoneText = document.getElementById('dropzone-text');
+  const fileInput = document.getElementById('file-input');
+  const uploadError = document.getElementById('upload-error');
+  const submitBtn = document.getElementById('submit-btn');
+  const viewButtons = document.querySelectorAll('.view-toggle button');
+
+  const uploadPanel = document.getElementById('upload-panel');
+  const processingPanel = document.getElementById('processing-panel');
+  const errorPanel = document.getElementById('error-panel');
+  const resultsPanel = document.getElementById('results-panel');
+
+  const statusText = document.getElementById('status-text');
+  const statusDetail = document.getElementById('status-detail');
+  const errorDetail = document.getElementById('error-detail');
+
+  let selectedFile = null;
+  let selectedView = 'front';
+  let pollHandle = null;
+  let currentJobId = null;
+
+  function showPanel(panel) {
+    [uploadPanel, processingPanel, errorPanel, resultsPanel].forEach(p => p.hidden = (p !== panel));
+  }
+
+  function setUploadError(msg) {
+    if (msg) {
+      uploadError.textContent = msg;
+      uploadError.hidden = false;
+    } else {
+      uploadError.hidden = true;
+    }
+  }
+
+  function validateFile(file) {
+    const isMp4 = file.type === 'video/mp4' || file.name.toLowerCase().endsWith('.mp4');
+    if (!isMp4) return "That file isn't an MP4. Choose an .mp4 clip and try again.";
+    if (file.size > MAX_VIDEO_SIZE_MB * 1024 * 1024) {
+      return `That file is over the ${MAX_VIDEO_SIZE_MB}MB limit. Trim the clip or lower its resolution and try again.`;
+    }
+    return null;
+  }
+
+  function selectFile(file) {
+    const err = validateFile(file);
+    if (err) {
+      setUploadError(err);
+      selectedFile = null;
+      submitBtn.disabled = true;
+      dropzoneText.textContent = "Drop your clip here or choose a file";
+      return;
+    }
+    setUploadError(null);
+    selectedFile = file;
+    dropzoneText.innerHTML = `<span class="filename">${file.name}</span>`;
+    submitBtn.disabled = false;
+  }
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) selectFile(fileInput.files[0]);
+  });
+  ['dragover', 'dragenter'].forEach(evt =>
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('drag-over'); })
+  );
+  ['dragleave', 'drop'].forEach(evt =>
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('drag-over'); })
+  );
+  dropzone.addEventListener('drop', (e) => {
+    const file = e.dataTransfer.files[0];
+    if (file) selectFile(file);
+  });
+
+  viewButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      viewButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedView = btn.dataset.view;
+    });
+  });
+
+  async function submitJob() {
+    if (!selectedFile) return;
+    const form = new FormData();
+    form.append('video', selectedFile);
+    form.append('view', selectedView);
+
+    showPanel(processingPanel);
+    statusText.textContent = 'Uploading';
+    statusDetail.textContent = 'sending your clip…';
+
+    try {
+      const res = await fetch('/analyze', { method: 'POST', body: form });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || `Upload failed (${res.status}).`);
+      }
+      const data = await res.json();
+      currentJobId = data.job_id;
+      pollStatus(data.job_id);
+    } catch (err) {
+      showError(err.message);
+    }
+  }
+
+  function pollStatus(jobId) {
+    pollHandle = setInterval(async () => {
+      try {
+        const res = await fetch(`/status/${jobId}`);
+        if (!res.ok) throw new Error('Lost track of this job — it may have expired.');
+        const data = await res.json();
+
+        if (data.status === 'queued') {
+          statusText.textContent = 'Queued';
+          statusDetail.textContent = 'waiting for a worker to pick this up…';
+        } else if (data.status === 'processing') {
+          statusText.textContent = 'Processing';
+          statusDetail.textContent = 'running pose detection on your clip…';
+        } else if (data.status === 'done') {
+          clearInterval(pollHandle);
+          loadResults(jobId);
+        } else if (data.status === 'error') {
+          clearInterval(pollHandle);
+          showError(data.error || 'Processing failed for an unknown reason.');
+        }
+      } catch (err) {
+        clearInterval(pollHandle);
+        showError(err.message);
+      }
+    }, 2000);
+  }
+
+  const CHECK_LABELS = { depth: 'Depth', back_angle: 'Back angle', knee_alignment: 'Knee alignment' };
+
+  function describeCheck(name, check) {
+    const label = CHECK_LABELS[name] || name;
+    if (check.verdict === 'insufficient_data') {
+      return `${label}: not enough reliable tracking to measure this rep`;
+    }
+    if (name === 'depth') {
+      const word = check.verdict === 'pass' ? 'bottomed out at' : 'only reached';
+      return `${label}: ${word} <strong>${check.min_knee_angle}°</strong> `
+        + `(${check.verdict} — threshold ${check.threshold}°)`;
+    }
+    if (name === 'back_angle') {
+      return `${label}: max lean <strong>${check.max_back_angle}°</strong> `
+        + `(${check.verdict} — outlier threshold ${check.threshold}°)`;
+    }
+    if (name === 'knee_alignment') {
+      return `${label}: ranged <strong>${check.min} to ${check.max}</strong> `
+        + `(${check.verdict} — acceptable band ${check.range[0]} to ${check.range[1]})`;
+    }
+    return `${label}: ${check.verdict}`;
+  }
+
+  async function loadResults(jobId) {
+    const res = await fetch(`/result/${jobId}`);
+    const report = await res.json();
+
+    document.getElementById('rep-count').textContent = report.total_reps;
+    document.getElementById('report-link').href = `/result/${jobId}`;
+    document.getElementById('video-link').href = `/result/${jobId}/video`;
+    document.getElementById('result-video').src = `/result/${jobId}/video`;
+
+    const repList = document.getElementById('rep-list');
+    const emptyState = document.getElementById('empty-reps');
+    const viewNote = document.getElementById('view-note');
+    const checkSummary = document.getElementById('check-summary');
+    repList.innerHTML = '';
+
+    if (report.total_reps === 0) {
+      emptyState.hidden = false;
+      viewNote.textContent = '';
+      checkSummary.innerHTML = '';
+      document.getElementById('tally-pass').textContent = '0 pass';
+      document.getElementById('tally-fail').textContent = '0 fail';
+      document.getElementById('tally-inconclusive').textContent = '0 inconclusive';
+      showPanel(resultsPanel);
+      return;
+    }
+    emptyState.hidden = true;
+
+    // Which checks actually apply to this clip's view is read straight off
+    // the data (any check that isn't universally "not_scored" across every
+    // rep) rather than hardcoded here -- so this always matches whatever
+    // thresholds.py's view config actually does, with nothing to keep in
+    // sync by hand.
+    const allCheckNames = Object.keys(report.reps[0].checks);
+    const scoredNames = allCheckNames.filter(name =>
+      report.reps.some(r => r.checks[name].verdict !== 'not_scored')
+    );
+    const unscoredNames = allCheckNames.filter(n => !scoredNames.includes(n));
+
+    if (unscoredNames.length) {
+      const scoredLabel = scoredNames.map(n => CHECK_LABELS[n] || n).join(' and ');
+      const unscoredLabel = unscoredNames.map(n => CHECK_LABELS[n] || n).join(' and ');
+      viewNote.textContent =
+        `This ${report.view} view clip is scored on ${scoredLabel.toLowerCase()}. `
+        + `${unscoredLabel} isn't measurable from this camera angle.`;
+    } else {
+      viewNote.textContent = '';
+    }
+
+    // Aggregate per-check tally across all reps, scored checks only.
+    checkSummary.innerHTML = scoredNames.map(name => {
+      let pass = 0, fail = 0, insufficient = 0;
+      report.reps.forEach(r => {
+        const v = r.checks[name].verdict;
+        if (v === 'pass') pass++;
+        else if (v === 'fail') fail++;
+        else if (v === 'insufficient_data') insufficient++;
+      });
+      const label = CHECK_LABELS[name] || name;
+      const parts = [`<span class="pass">${pass} pass</span>`, `<span class="fail">${fail} fail</span>`];
+      if (insufficient) parts.push(`<span class="neutral">${insufficient} insufficient</span>`);
+      return `
+        <div class="check-summary-item">
+          <div class="check-name">${label}</div>
+          <div class="check-counts">${parts.join('')}</div>
+        </div>
+      `;
+    }).join('');
+
+    let pass = 0, fail = 0, inconclusive = 0;
+
+    report.reps.forEach(rep => {
+      if (rep.overall === 'pass') pass++;
+      else if (rep.overall === 'fail') fail++;
+      else inconclusive++;
+
+      const checkLines = scoredNames
+        .map(name => ({ name, check: rep.checks[name] }))
+        .filter(({ check }) => check.verdict !== 'not_scored')
+        .map(({ name, check }) => `
+            <div class="rep-check-line">
+              <span class="dot ${check.verdict === 'pass' ? 'pass' : check.verdict === 'fail' ? 'fail' : 'insufficient_data'}"></span>
+              <span class="text">${describeCheck(name, check)}</span>
+            </div>
+          `).join('');
+
+      const row = document.createElement('div');
+      row.className = 'rep-row';
+      row.innerHTML = `
+        <div class="rep-row-head">
+          <div>
+            <div>Rep ${rep.rep}</div>
+            <div class="rep-when">${rep.start_t}s – ${rep.end_t}s</div>
+          </div>
+          <span class="pill ${rep.overall}">${rep.overall}</span>
+        </div>
+        <div class="rep-checks">${checkLines}</div>
+      `;
+      repList.appendChild(row);
+    });
+
+    document.getElementById('tally-pass').textContent = `${pass} pass`;
+    document.getElementById('tally-fail').textContent = `${fail} fail`;
+    document.getElementById('tally-inconclusive').textContent = `${inconclusive} inconclusive`;
+
+    showPanel(resultsPanel);
+  }
+
+  function showError(message) {
+    errorDetail.textContent = message;
+    showPanel(errorPanel);
+  }
+
+  async function deleteJob(jobId, { keepalive = false } = {}) {
+    if (!jobId) return;
+    try {
+      await fetch(`/jobs/${jobId}`, { method: 'DELETE', keepalive });
+    } catch (err) {
+      // Best-effort cleanup -- if this fails (network hiccup, page already
+      // gone), the server's TTL sweep still catches it eventually. Not
+      // worth surfacing to the user either way.
+    }
+  }
+
+  async function resetForm() {
+    // Explicit, in-page action -- the request has time to complete before
+    // we tear down the UI, so this isn't a keepalive/best-effort call.
+    await deleteJob(currentJobId);
+    currentJobId = null;
+    selectedFile = null;
+    fileInput.value = '';
+    dropzoneText.textContent = 'Drop your clip here or choose a file';
+    submitBtn.disabled = true;
+    setUploadError(null);
+    showPanel(uploadPanel);
+  }
+
+  // Best-effort cleanup when the tab is closed or refreshed. `keepalive`
+  // lets this request keep going even as the page unloads -- more
+  // reliable than a plain fetch here, but not guaranteed (a crash or a
+  // lost connection right at that moment still means it never lands,
+  // which is exactly why the server-side TTL sweep still exists as a
+  // backstop rather than being replaced by this).
+  window.addEventListener('pagehide', () => {
+    if (currentJobId) deleteJob(currentJobId, { keepalive: true });
+  });
+
+  submitBtn.addEventListener('click', submitJob);
+  document.getElementById('retry-btn').addEventListener('click', resetForm);
+  document.getElementById('reset-btn').addEventListener('click', resetForm);
+})();
+</script>
+</body>
+</html>
