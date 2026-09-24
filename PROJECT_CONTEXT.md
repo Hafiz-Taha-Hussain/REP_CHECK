@@ -18,8 +18,8 @@ scoped out early as unnecessary deployment complexity for this stage.
 **Tech stack:** Python, OpenCV, MediaPipe (Tasks API), FastAPI, Docker,
 deployed on Render.
 
-**Original 5-week plan:** Weeks 1-4 = local pipeline (pose extraction →
-angle math/rules → rep counting → output generation). Week 5 = deployment
+**Original 2-week plan:** Weeks 1 = local pipeline (pose extraction →
+angle math/rules → rep counting → output generation). Week 2 = deployment
 (FastAPI, Docker, CI, hosting, monitoring, README). **Both phases are now
 complete.** This doc covers everything built and learned in Phase 1, plus a
 closing section on Phase 2 (deployment) — see the bottom of this file.
