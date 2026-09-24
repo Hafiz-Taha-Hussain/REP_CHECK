@@ -32,7 +32,12 @@ WORKDIR /app
 # code edit. Editing main.py alone won't trigger a full dependency
 # reinstall on the next build.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# --root-user-action=ignore: silences pip's "running as root" warning --
+# expected and harmless inside an isolated single-purpose container image
+# (no multi-user permission conflict to actually cause), not something
+# that needs the fuller fix (a dedicated non-root USER) at this project's
+# scale.
+RUN pip install --no-cache-dir --root-user-action=ignore -r requirements.txt
 
 # Now the actual app: main.py, rep_counter.py, compute_angles.py,
 # thresholds.py, index.html -- everything expected to live in one folder.

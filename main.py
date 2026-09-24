@@ -75,7 +75,7 @@ OUTPUT_DIR = Path("outputs")
 # and report a timeout instead of leaving the job (and the one worker
 # behind it) stuck in "processing" forever. See the comment above
 # _run_pipeline_with_timeout for the real limitation this doesn't solve.
-PROCESSING_TIMEOUT_SECONDS = 300  # 5 min
+PROCESSING_TIMEOUT_SECONDS = 420  # 7 min
 
 # "ffmpeg" alone works once it's on PATH (true inside the Docker image,
 # where apt-get installs it there). Locally on Windows, if winget didn't
@@ -216,11 +216,12 @@ def downscale_if_needed(input_path: Path, output_path: Path) -> Path:
         "-vf", f"scale='min({MAX_PROCESSING_WIDTH},iw)':-2",
         "-c:v", "libx264",
         "-preset", "veryfast",
+        "-threads", "1",
         "-pix_fmt", "yuv420p",
         str(output_path),
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=420)
     except FileNotFoundError as e:
         raise RuntimeError(
             f"Could not run ffmpeg at '{FFMPEG_BIN}' -- required to "
@@ -245,6 +246,13 @@ def transcode_for_web(input_path: Path, output_path: Path) -> None:
       - preset veryfast -- shallower encoder lookahead than the default
         "medium" preset, trading a bit of compression efficiency (doesn't
         matter for a short demo clip) for meaningfully less RAM.
+      - threads 1 -- confirmed necessary by testing, not preemptive: on
+        Render's free tier (0.1 CPU -- a HARD quota, not a soft share),
+        libx264's default multi-threaded encoding has no real parallelism
+        to exploit and just adds scheduling overhead fighting over that
+        tiny slice. Single-threaded avoids that overhead entirely. This
+        does NOT fix the underlying compute ceiling -- 0.1 CPU is still
+        0.1 CPU -- it only removes self-inflicted inefficiency on top of it.
     """
     cmd = [
         FFMPEG_BIN, "-y",
@@ -252,12 +260,13 @@ def transcode_for_web(input_path: Path, output_path: Path) -> None:
         "-vf", f"scale='min({MAX_PROCESSING_WIDTH},iw)':-2",
         "-c:v", "libx264",
         "-preset", "veryfast",
+        "-threads", "1",
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         str(output_path),
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=420)
     except FileNotFoundError as e:
         raise RuntimeError(
             f"Could not run ffmpeg at '{FFMPEG_BIN}' -- required to produce "
