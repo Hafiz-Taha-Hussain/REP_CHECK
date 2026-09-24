@@ -117,7 +117,7 @@ another ~30-60 seconds just to wake up.
 
 [`GIF_Demo_RepCheck.gif`](GIF_Demo_RepCheck.gif)
 
-See full video here: [`Demo_RepCheck.gif`](Demo_RepCheck.mp4)
+See full video here: [`Demo_RepCheck.mp4`](Demo_RepCheck.mp4)
 
 ## Running it yourself
 
